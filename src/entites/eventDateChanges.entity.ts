@@ -13,8 +13,8 @@ export class EventDateChanges {
     @Column("date")
     originalDate: Date;
 
-    @Column("date")
-    replacedDate: Date;
+    @Column("date",{ nullable: true })
+    replacedDate?: Date;
 
     @Column("boolean", { nullable: true })
     isCanceled?: boolean;

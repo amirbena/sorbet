@@ -1,7 +1,7 @@
 import { RecurringEventInsertDto } from './../dto/recurring-event-insert-dto';
 import { SimpleEventInsertDto } from './../dto/simple-event-insert.dto';
-import { UserService } from "./../service/user.service";
-import { CalenderService } from "../service/calender.service";
+import { UserService} from "../services/user.service";
+import { CalenderService} from "../services/calender.service";
 import { Controller, Post, Body, UsePipes, ValidationPipe, Put, Param, Get } from "@nestjs/common";
 import { UserInsertDto } from "../dto/user-insert.dto";
 

@@ -25,6 +25,8 @@
     "@nestjs/core": "^7.0.0",
     "@nestjs/platform-express": "^7.0.0",
     "@nestjs/typeorm": "^7.1.5",
+    "@types/async": "^3.2.6",
+    "async": "^3.2.0",
     "class-validator": "^0.13.1",
     "pg": "^8.6.0",
     "pg-hstore": "^2.3.3",
