@@ -1,7 +1,7 @@
-import { UserService } from './service/user.service';
+import { UserService } from './services/user.service';
 import { Module } from '@nestjs/common';
 import { CalenderController } from './controller/calender.controller';
-import { CalenderService } from './service/calender.service';
+import { CalenderService } from './services/calender.service';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import entites from '../entites';
 
