@@ -16,12 +16,15 @@ import * as async from 'async'
 import { RecurringEventDetails } from '../interfaces'
 
 
-enum Errors{
+enum ClientMessages{
     SIMPLE_INPUT_MESSAGE="One of them need to be",
     SIMPLE_EVENT_NOT_FOUND= "Simple event not found",
     RECURRRING_ERROR_INPUT_MESSAGE= "One of them need to be",
     RECURRING_NOT_FOUND="Recurring Event not found",
-    DATE_NOT_IN_RANGE= "Date is not in range"
+    DATE_NOT_IN_RANGE= "Date is not in range",
+    CANCELED_RECURRING="Event recurring instance canceled succesfully",
+    CHANGED="Event date changed sucessfully",
+
 }
 @Injectable()
 export class CalenderService {
@@ -39,19 +42,22 @@ export class CalenderService {
   ) {}
 
   public async addSimpleEvent ( simpleEventDto: SimpleEventInsertDto): Promise<SimpleEvents> {
-    let company: Company = null,
-      user: User = null
-    if (!simpleEventDto.companyId && !simpleEventDto.userId) {
-      throw new BadRequestException(Errors.SIMPLE_INPUT_MESSAGE)
-    }
+    let company: Company = null, user: User = null;
+
     if (simpleEventDto.companyId) {
       company = await this.companyRepository.findOne({
         id: simpleEventDto.companyId,
       })
     }
-    if (simpleEventDto.userId) {
+
+    else if (simpleEventDto.userId) {
       user = await this.userRepository.findOne({ id: simpleEventDto.userId })
     }
+ 
+    else{
+        throw new BadRequestException(ClientMessages.SIMPLE_INPUT_MESSAGE)
+    }
+
     const insertEvent = {
       ...simpleEventDto,
       company,
@@ -60,32 +66,31 @@ export class CalenderService {
 
     return await this.simpleEventRepository.create(insertEvent)
   }
-  public async changeSimpleEventDate (
-    simpleEventId: number,
-    newDate: Date,
-  ): Promise<void> {
+  public async changeSimpleEventDate (simpleEventId: number,newDate: Date): Promise<string> {
     const result: UpdateResult = await this.simpleEventRepository.update(
       { originalDate: newDate },
       { id: simpleEventId },
     )
     if (!result.affected) {
-      throw new NotFoundException(Errors.SIMPLE_EVENT_NOT_FOUND)
+      throw new NotFoundException(ClientMessages.SIMPLE_EVENT_NOT_FOUND)
     }
+    return ClientMessages.CHANGED;
   }
 
 
   public async addRecurringEvent (reccurringDto: RecurringEventInsertDto): Promise<RecurringEvents> {
     let company: Company = null,user: User = null;
 
-    if (!reccurringDto.companyId && !reccurringDto.userId) {
-      throw new BadRequestException(Errors.RECURRRING_ERROR_INPUT_MESSAGE)
-    }
-
     if (reccurringDto.companyId) {
       company = await this.companyRepository.findOne({id: reccurringDto.companyId})
     }
-    if (reccurringDto.userId) {
+
+    else if (reccurringDto.userId) {
       user = await this.userRepository.findOne({ id: reccurringDto.userId })
+    }
+
+    else{
+        throw new BadRequestException(ClientMessages.RECURRRING_ERROR_INPUT_MESSAGE)
     }
 
     const insertEvent = {
@@ -121,54 +126,47 @@ export class CalenderService {
   }
 
 
-  public async changeDateOfRecurringInstance(recurringId: number, date: Date, newDate: Date): Promise<EventDateChanges> {
+  public async changeDateOfRecurringInstance(recurringId: number, date: Date, newDate: Date): Promise<string> {
     
     const recurringEvent: RecurringEvents = await this.recurringEventRepository.findOne({ id: recurringId });
 
     if (!recurringEvent) {
-      throw new NotFoundException(Errors.RECURRING_NOT_FOUND)
+      throw new NotFoundException(ClientMessages.RECURRING_NOT_FOUND)
     }
     if (!this.checkIfDateInRange(recurringEvent, date)) {
-      throw new BadRequestException(Errors.DATE_NOT_IN_RANGE)
+      throw new BadRequestException(ClientMessages.DATE_NOT_IN_RANGE)
     }
-    return await this.eventdateChangesRepository.create({
+    await this.eventdateChangesRepository.create({
       replacedDate: newDate,
       originalDate: date,
       recurringEvent,
     })
+    return ClientMessages.CHANGED;
   }
 
-  public async cancelRecurringEventInstance (recurringId: number, dateInstance: Date): Promise<EventDateChanges> {
+  public async cancelRecurringEventInstance(recurringId: number, dateInstance: Date): Promise<string> {
     const recurringEvent: RecurringEvents = await this.recurringEventRepository.findOne({ id: recurringId })
     if (!recurringEvent) {
-      throw new NotFoundException(Errors.RECURRING_NOT_FOUND)
+      throw new NotFoundException(ClientMessages.RECURRING_NOT_FOUND)
     }
     if (!this.checkIfDateInRange(recurringEvent, dateInstance)) {
-      throw new BadRequestException(Errors.DATE_NOT_IN_RANGE)
+      throw new BadRequestException(ClientMessages.DATE_NOT_IN_RANGE)
     }
-    return await this.eventdateChangesRepository.create({
+    await this.eventdateChangesRepository.create({
       recurringEvent,
       originalDate: dateInstance,
       isCanceled: true,
     })
+    return ClientMessages.CANCELED_RECURRING;
   }
 
 
   private checkIfRecurringEventIsRange(eventCondition:EventDateChanges,dateToCheck:Date, startDate: Date,endDate: Date){
-    
-    if (eventCondition.originalDate === dateToCheck && !eventCondition.isCanceled) {
-        if (eventCondition.replacedDate) {
-          if (eventCondition.replacedDate >= startDate && eventCondition.replacedDate <= endDate) {
-             return true;
-          }
-        }
-    }
 
-    if ( dateToCheck >= startDate && dateToCheck <= endDate) {
-        return true;
-    }
-    
-    return false;
+    const dateChecking= eventCondition.originalDate === dateToCheck && !eventCondition.isCanceled && eventCondition.replacedDate? 
+    eventCondition.replacedDate : dateToCheck;
+
+    return dateChecking>= startDate && dateChecking <= endDate;
   }
 
   private async buildRecurringEventArray ( recurringEvent: RecurringEvents, startDate: Date, endDate: Date) {
@@ -195,14 +193,14 @@ export class CalenderService {
     specialChangesCancelations.forEach(special => {
       let date: Date = recurringEvent.firstDate;
       if (recurringEvent.range === Ranges.Monthly) {
-       
+
         while (date.getFullYear() < year) {
             if(this.checkIfRecurringEventIsRange(special,date,startDate,endDate)){
-                recurringDetails = {
+               recurringDetails = {
                     ...recurringDetails,
                     date: special.replacedDate? special.replacedDate: date,
-                  }
-                  array.push(recurringDetails);
+                }
+                array.push(recurringDetails);
             }
 
           date.setMonth(date.getMonth() + 1)
@@ -235,7 +233,7 @@ export class CalenderService {
         const resultAcurring= await this.buildRecurringEventArray(recurringEvent,startDate,endDate);
         allEvents=allEvents.concat(resultAcurring);
     });
-    
+
     return allEvents
   }
 }
